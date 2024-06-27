@@ -1,7 +1,5 @@
-// Importar React
 import React, { Component } from 'react';
 
-// Definir el componente basado en clases
 class Navbar extends Component {
   render() {
     return (
