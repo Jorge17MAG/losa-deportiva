@@ -1,14 +1,19 @@
 import React, { Component } from 'react';
-import NuevoInforme from './NuevoInforme';
+import NuevoInforme from './AgregarEditarInforme';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
+import { FaFileExcel } from "react-icons/fa";
+import { FaPlus } from "react-icons/fa";
+import { FaRegTrashAlt } from "react-icons/fa";
+import { FaPencilAlt } from "react-icons/fa";
 
 class Informes extends Component {
     state = {
         informes: [],
         mostrarModal: false,
         informeSeleccionado: null,
+        selectedMonth: 'Todos',
         selectedYear: '2024'
     }
 
@@ -16,31 +21,39 @@ class Informes extends Component {
         this.fetchInformes();
     }
 
+
     fetchInformes = () => {
-        fetch(`http://localhost:8000/reports`)
+        fetch(`http://192.168.18.182:8000/reports`)
             .then(response => response.json())
             .then(data => {
                 console.log('Datos recibidos:', data);
-                this.setState({ informes: data });
+                this.setState({ informes: data }, this.calculateTotalAmount);
             })
             .catch(error => console.error('Error al obtener informes:', error));
     }
-
+    
     fetchInformesFiltrados = () => {
         const { selectedMonth, selectedYear } = this.state;
         let monthNumber = this.convertirMesANumero(selectedMonth);
+        console.log(monthNumber)
     
-        fetch(`http://localhost:8000/reports_month_year?month=${monthNumber}&year=${selectedYear}`)
-        .then(response => response.json())
-        .then(data => {
-            console.log('Datos recibidos (filtrados):', data);
-            this.setState({ informes: data });
-        })
-        .catch(error => console.error('Error al obtener informes filtrados:', error));
+        fetch(`http://192.168.18.182:8000/reports_month_year?month=${monthNumber}&year=${selectedYear}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Datos recibidos (filtrados):', data);
+                this.setState({ informes: data }, this.calculateTotalAmount);
+            })
+            .catch(error => console.error('Error al obtener informes filtrados:', error));
+    }
+
+    calculateTotalAmount = () => {
+        const { informes } = this.state;
+        return informes.reduce((total, informe) => total + parseFloat(informe.amount), 0);
     }
 
     convertirMesANumero = (nombreMes) => {
         const meses = {
+            'Todos' : '00',
             'Enero': '01',
             'Febrero': '02',
             'Marzo': '03',
@@ -67,10 +80,10 @@ class Informes extends Component {
 
     generarExcel = () => {
         const { informes, selectedMonth, selectedYear } = this.state;
-    
+
         const mes = selectedMonth ? `${selectedMonth}` : '';
         const año = selectedYear ? `_${selectedYear}` : '';
-    
+
         let filename = `informes`;
         if (mes && año) {
             filename = `informes_${mes.toLowerCase()}_${año}`;
@@ -79,12 +92,12 @@ class Informes extends Component {
         } else if (año) {
             filename = `informes${año}`;
         }
-    
+
         const wb = XLSX.utils.book_new();
         const wsData = [
             ['Cliente', 'Nro. Recibo', 'Fecha', 'Día', 'Descripción', 'Importe']
         ];
-    
+
         informes.forEach(informe => {
             const rowData = [
                 informe.client,
@@ -96,10 +109,10 @@ class Informes extends Component {
             ];
             wsData.push(rowData);
         });
-    
+
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         XLSX.utils.book_append_sheet(wb, ws, 'Informes');
-    
+
         XLSX.writeFile(wb, `${filename}.xlsx`);
     }
 
@@ -115,80 +128,104 @@ class Informes extends Component {
         this.fetchInformesFiltrados();
     }
 
-    handleReiniciarClikc = () => {
+    handleReiniciarClick = () => {
         this.fetchInformes();
+    }
+
+    deleteInforme = (id) => {
+        fetch(`http://192.168.18.182:8000/reports/${id}`, {
+            method: 'DELETE'
+        })
+            .then(response => {
+                if (response.ok) {
+                    this.setState((prevState) => ({
+                        informes: prevState.informes.filter(informe => informe.id !== id)
+                    }));
+                } else {
+                    console.error('Error al borrar el informe');
+                }
+            })
+            .catch(error => console.error('Error al borrar el informe:', error));
     }
 
     render() {
         const { selectedMonth, selectedYear } = this.state;
+        const totalAmount = this.calculateTotalAmount();
 
         return (
-            <div className='text-slate-900 p-5'>
-                <div className='flex justify-between mb-2'>
-                    <div className='flex gap-4 items-center'>
-                        <select className='p-2 border-gray-300 border-[1px] rounded-lg text-sm cursor-pointer' value={selectedMonth} onChange={this.handleMonthChange}>
-                            <option value='Enero'>Enero</option>
-                            <option value='Febrero'>Febrero</option>
-                            <option value='Marzo'>Marzo</option>
-                            <option value='Abril'>Abril</option>
-                            <option value='Mayo'>Mayo</option>
-                            <option value='Junio'>Junio</option>
-                            <option value='Julio'>Julio</option>
-                            <option value='Agosto'>Agosto</option>
-                            <option value='Septiembre'>Septiembre</option>
-                            <option value='Octubre'>Octubre</option>
-                            <option value='Noviembre'>Noviembre</option>
-                            <option value='Diciembre'>Diciembre</option>
+            <div className='text-neutral-900 dark:text-neutral-50'>
+                <h2 className='text-start text-3xl uppercase mb-4'> Informes</h2>
+                <div className='flex mb-2 flex-col sm:flex-row gap-4'>
+                    <div className='flex gap-4 items-center flex-wrap flex-1'>
+                        <select className='p-2 border-neutral-500 border-[1px] bg-transparent text-slate-50 dark:text-slate-50 rounded-lg text-sm cursor-pointer' value={selectedMonth} onChange={this.handleMonthChange}>
+                            <option className='text-black' value='Todos'>Todos los meses</option>
+                            <option className='text-black' value='Enero'>Enero</option>
+                            <option className='text-black' value='Febrero'>Febrero</option>
+                            <option className='text-black' value='Marzo'>Marzo</option>
+                            <option className='text-black' value='Abril'>Abril</option>
+                            <option className='text-black' value='Mayo'>Mayo</option>
+                            <option className='text-black' value='Junio'>Junio</option>
+                            <option className='text-black' value='Julio'>Julio</option>
+                            <option className='text-black' value='Agosto'>Agosto</option>
+                            <option className='text-black' value='Septiembre'>Septiembre</option>
+                            <option className='text-black' value='Octubre'>Octubre</option>
+                            <option className='text-black' value='Noviembre'>Noviembre</option>
+                            <option className='text-black' value='Diciembre'>Diciembre</option>
                         </select>
 
-                        <select className='p-2 border-gray-300 border-[1px] rounded-lg text-sm cursor-pointer' value={selectedYear} onChange={this.handleYearChange}>
-                            <option>2024</option>
-                            <option>2023</option>
+                        <select className='p-2 dark:border-neutral-500 border-[1px] bg-transparent text-slate-950 dark:text-slate-50 rounded-lg text-sm cursor-pointer' value={selectedYear} onChange={this.handleYearChange}>
+                            <option className='text-black' value='2024'>2024</option>
+                            <option className='text-black' value='2023'>2023</option>
                         </select>
 
                         <button
-                            className='text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5   dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800'
+                            className='dark:bg-neutral-700 dark:text-white p-2 rounded-md dark:border-neutral-500 border-[1px] dark:hover:bg-neutral-800'
                             onClick={this.handleFiltrarClick}
                         >
                             Filtrar
                         </button>
 
                         <button
-                            className='text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5   dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800'
-                            onClick={this.handleReiniciarClikc}
+                            className='dark:bg-neutral-700 dark:text-white p-2 rounded-md dark:border-neutral-500 border-[1px] dark:hover:bg-neutral-800'
+                            onClick={this.handleReiniciarClick}
                         >
                             Reiniciar
                         </button>
+
+                        
                     </div>
 
-                    <div className='flex gap-2 items-center'>
+                    <div className='flex gap-2 justify-end'>
                         <button
-                            className='focus:outline-none text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5   dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800'
+                            className='flex items-center gap-1 dark:bg-neutral-700 dark:text-white p-2 rounded-md dark:border-neutral-500 border-[1px] dark:hover:bg-neutral-800'
                             onClick={this.generarExcel}
-                        >
-                            Generar Excel
+                        >   
+                            <FaFileExcel/>Generar Excel
                         </button>
 
                         <button
-                            className='text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800'
+                            className='flex items-center gap-1  dark:bg-neutral-700 dark:text-white p-2 rounded-md dark:border-neutral-500 border-[1px] dark:hover:bg-neutral-800'
                             onClick={() => this.setMostrarModal(true)}
                         >
+                            <FaPlus/>
                             Nuevo Informe
                         </button>
-
                     </div>
                 </div>
 
+                <div className='mt-4 '>
+                    <p className='text-start'>Total Importe: S/. {totalAmount}</p>
+                </div>
+
                 <div className="flex flex-col">
-                    <div className="overflow-x-auto sm:-mx-6 lg:-mx-8">
-                        <div className="inline-block min-w-full py-2 sm:px-6 lg:px-8">
+                    <div className="overflow-x-auto">
+                        <div className="inline-block min-w-full py-2">
                             <div className="overflow-hidden">
                                 <table className="min-w-full text-left text-base">
-                                    <thead className="border-b font-medium bg-slate-500 text-white">
-                                        <tr>
+                                    <thead className="bg-neutral-100 dark:bg-neutral-500 border-slate-50 font-medium  dark:text-neutral-50 text-neutral-900">
+                                        <tr className='uppercase'>
                                             <th scope="col" className="px-6 py-4">ID</th>
                                             <th scope="col" className="px-6 py-4">Cliente</th>
-                                            <th scope="col" className="px-6 py-4">Nro. Recibo</th>
                                             <th scope="col" className="px-6 py-4">Fecha</th>
                                             <th scope="col" className="px-6 py-4">Día</th>
                                             <th scope="col" className="px-6 py-4">Descripción</th>
@@ -198,22 +235,26 @@ class Informes extends Component {
                                     </thead>
                                     <tbody>
                                         {this.state.informes.map(informe => (
-                                            <tr key={informe.id} className="odd:bg-gray-100 even:bg-white">
+                                            <tr key={informe.id} className=" text-neutral-700 dark:text-neutral-50 even:bg-neutral-50 odd:bg-neutral-200 dark:even:bg-neutral-700 dark:odd:bg-neutral-800">
                                                 <td className="px-6 py-4">{informe.id}</td>
                                                 <td className="px-6 py-4">{informe.client}</td>
-                                                <td className="px-6 py-4">{informe.num_receipt}</td>
                                                 <td className="px-6 py-4">{informe.date}</td>
                                                 <td className="px-6 py-4">{this.obtenerDiaDeLaSemana(informe.date)}</td>
                                                 <td className="px-6 py-4">{informe.description}</td>
                                                 <td className="px-6 py-4">{informe.amount}</td>
                                                 <td className='px-6 py-4 flex gap-2 text-white'>
                                                     <button
-                                                        className='bg-blue-500 rounded-sm py-1 px-2'
+                                                        className='border-[1px] border-blue-400 p-2 rounded-md hover:bg-blue-400 transition-colors'
                                                         onClick={() => this.setMostrarModal(true, informe)}
                                                     >
                                                         Editar
                                                     </button>
-                                                    <button className='bg-red-500 rounded-sm py-1 px-2'>Borrar</button>
+                                                    <button
+                                                        className='border-[1px] border-red-400 p-2 rounded-md hover:bg-red-400 transition-colors'
+                                                        onClick={() => this.deleteInforme(informe.id)}
+                                                    >
+                                                        Borrar
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
